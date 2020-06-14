@@ -1,0 +1,124 @@
+---
+title: "Assignment 1"
+author: "Manan Rajvir"
+date: "12/06/2020"
+output: html_document
+keep_md: true
+---
+
+### Step 1: Loading and Processing the Data    
+The first step is to read the data from the CSV file and convert the Date column
+into the date format.
+```{r LoadData, echo=TRUE}
+data <- read.csv("activity.csv")
+data$date <- as.Date(data$date, format = "%Y-%m-%d")
+```
+
+
+### Step 2: Analysing steps taken per day    
+This step involves:   
+1. Calculating the total number of steps taken per day  
+2. Plotting a Histogram of total number of steps taken each day  
+3. Calculating the mean and median of total number of steps taken per day
+
+1. **Total Number of Steps:**
+```{r TotalSteps, echo = TRUE}
+total <- with(data,tapply(steps,date,sum,na.rm=TRUE))
+as.table(total)
+```
+
+2. **Histogram**
+```{r Histogram, echo = TRUE}
+hist(total,xlab="Number of Daily Steps", ylab = "Frequency", main = "Histogram for Daily Steps")
+```
+
+3. **Mean and Median of total steps taken per day**
+``` {r Mean, echo = TRUE}
+mean_steps <- mean(total,na.rm=TRUE)
+median_steps <- median(total,na.rm=TRUE)
+print(mean_steps)
+print(median_steps)
+```
+
+### Step 3: Analysing average daily activity pattern  
+This step involves:
+1. Making a plot of the 5 minute interval and the average number of steps taken
+2. Finding which 5 minute interval, on average across all days contains maximum steps
+
+1. **Time Series Plot**
+```{r TimeSeries, echo = TRUE}
+intervals_steps <- aggregate(x=list(steps=data$steps),by=list(interval=data$interval),mean,na.rm=TRUE)
+plot(intervals_steps,type="l",xlab="Interval Periods",ylab = "Average Steps",main="Average Daily Activity Pattern")
+```
+
+2. **Find Interval with maximum average steps**
+```{r Maximum, echo = TRUE}
+intervals_steps[which.max(intervals_steps$steps),"interval"]
+```
+
+### Step 4: Imputing Missing Values  
+The presence of missing values in the data may affect the results.  
+Therefore we will:  
+1. Calculate total number of missing values in the dataset  
+2. Devise a strategy to fill the missing value  
+3. Create a new dataset with all the missing values filled  
+4. Analyse the new dataset
+
+1. **Calculate missing values**
+```{r MissingData, echo = TRUE}
+sum(is.na(data$steps))
+```
+
+2. **Filling the Missing Values**
+The missing values in the dataset will be filled by using the average value for steps in the particular interval from which the data is missing.
+```{r FillMissingData, echo = TRUE}
+replace_NA <- function(steps, interval) {
+     filled <- NA
+     if (!is.na(steps)) 
+         filled <- c(steps) else filled <- (intervals_steps[intervals_steps$interval == interval, "steps"])
+     return(filled)
+}
+```
+
+3. **Create the new dataset with no missing values**
+```{r NewDataset, echo = TRUE}
+newdf <- data
+newdf$steps <- mapply(replace_NA, newdf$steps, newdf$interval)
+sum(is.na(newdf$steps))
+```
+
+4. **Analyse the new dataset**
+The new dataset will be analysed to see if there is any major changes in the histogram for daily steps. We will also analyse the changes in mean and median number of daily steps.
+```{r CompareResults, echo = TRUE}
+total_new <- with(newdf,tapply(steps,date,sum,na.rm=TRUE))
+hist(total_new,xlab="Number of Daily Steps",ylab = "Frequency",main = "Histogram for Daily Steps")
+mean_steps2 <- mean(total_new,na.rm=TRUE)
+median_steps2 <- median(total_new,na.rm=TRUE)
+print(mean_steps2)
+print(median_steps2)
+```
+
+Differences between the two datasets:
+```{r Differences, echo = TRUE}
+cat("Change in mean between 2 datasets = ",mean_steps2-mean_steps)
+cat("Change in median between 2 datasets = ",median_steps2-median_steps)
+```
+
+### Step 5: Comparing Weekdays and Weekends
+A time series plot will be created to see if there is any difference between the average activities during all intervals on weekdays and weekends
+
+```{r Weekdays, echp = TRUE}
+library(ggplot2)
+weekday.or.weekend <- function(date) {
+    day <- weekdays(date)
+    if (day %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")) 
+        return("weekday") else if (day %in% c("Saturday", "Sunday")) 
+        return("weekend") else stop("invalid date")
+}
+newdf$date <- as.Date(newdf$date)
+newdf$day <- sapply(newdf$date, FUN = weekday.or.weekend)
+averages <- aggregate(steps ~ interval + day, data = newdf, mean)
+ggplot(averages, aes(interval, steps)) + geom_line() + facet_grid(day ~ .) + 
+    xlab("5-minute interval") + ylab("Number of steps")
+
+```
